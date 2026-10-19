@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
    char *iface_name = argv[1]; // Se guarda el primer argumento escrito por el usuario (el nombre de la interfaz física, ej. "eth0") en un puntero de texto.
    char *ip_str = argv[2];     // Se guarda el segundo argumento (la IP de destino en formato legible, ej. "192.168.1.20") en otro puntero.
 
-   // PASO 2: Apertura del hardware. Abrir la interfaz de red para poder comunicarnos físicamente con el exterior.
+   // PASO 2: Apertura del hardware. Abrir la interfaz de red para poder comunicarnos físicamente cn el exterior.
    // eth_open()-> Inicia la conexión con la interfaz de red y devuelve una "llave" o manejador para poder usarla en los posteriores envíos y recepciones.
    eth_iface_t *iface = eth_open(iface_name);
    if (iface == NULL) {
