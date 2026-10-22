@@ -1,8 +1,8 @@
 #include <stdio.h>  // Proporciona funciones de entrada y salida como printf() para interactuar con la terminal.
 #include <stdlib.h> // Contiene funciones de gestión del sistema como exit() para abortar la ejecución de forma segura si hay un error.
-#include "eth.h"    // Permite controlar el puerto de red para mandar y leer mensajes físicos.
-#include "ipv4.h"   // Facilita las funciones necesarias para manejar direcciones IP, como traducir cadenas de texto al formato binario que entiende la red.
-#include "arp.h"    // Importa las estructuras (como arp_header) y la función arp_resolve() definidas en la cabecera.
+#include "../eth/eth.h"    // Permite controlar el puerto de red para mandar y leer mensajes físicos.
+#include "../ipv4/ipv4.h"   // Facilita las funciones necesarias para manejar direcciones IP, como traducir cadenas de texto al formato binario que entiende la red.
+#include "../arp/arp.h"    // Importa las estructuras (como arp_header) y la función arp_resolve() definidas en la cabecera.
 
 // La variable argc sirve para contar el número exacto de palabras introducidas en la consola al lanzar el programa (como mínimo deben ser 3: ./programa (0), eth0 (1), y la IP (2)). Por otro lado, argv es una lista que almacena el texto de cada una de esas palabras para que puedas inyectar la interfaz y la IP directamente en tu código.
 int main(int argc, char *argv[]) {

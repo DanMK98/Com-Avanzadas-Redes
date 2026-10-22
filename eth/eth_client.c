@@ -1,4 +1,4 @@
-#include "eth.h"
+#include "../eth/eth.h"
 
 #include <stdio.h>
 #include <stdlib.h>

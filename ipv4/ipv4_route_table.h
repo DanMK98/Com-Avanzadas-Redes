@@ -17,11 +17,20 @@
  * encaminamiento sea necesario añadir más campos a esta estructura, así como
  * modificar las funciones asociadas.
  */
+
+ typedef struct ipv4_route_table ipv4_route_table_t;
+ 
+typedef struct ipv4_layer {
+  ipv4_route_table_t * route_table;
+  ipv4_addr_t src_addr;
+} ipv4_layer_t;
+
 typedef struct ipv4_route {
   ipv4_addr_t subnet_addr;
   ipv4_addr_t subnet_mask;
   char iface[IFACE_NAME_MAX_LENGTH];
   ipv4_addr_t gateway_addr;
+  ipv4_layer_t * layer;
 } ipv4_route_t;
 
 
@@ -134,7 +143,7 @@ void ipv4_route_free ( ipv4_route_t * route );
  * respectivamente, leer/escribir la tabla de rutas de/a un fichero, e
  * imprimirla por la salida estándar.
  */
-typedef struct ipv4_route_table ipv4_route_table_t;
+//typedef struct ipv4_route_table ipv4_route_table_t;
 
 
 /* ipv4_route_table_t * ipv4_route_table_create();
@@ -344,6 +353,7 @@ void ipv4_route_table_print ( ipv4_route_table_t * table );
  *   fichero de rutas.
  */
 int ipv4_route_table_write ( ipv4_route_table_t * table, char * filename );
+
 
 
 #endif /* _IPv4_ROUTE_TABLE_H */

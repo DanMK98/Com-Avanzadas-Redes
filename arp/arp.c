@@ -1,4 +1,4 @@
-#include "arp.h"       // Importa la estructura arp_header para manejar mensajes ARP.
+#include "../arp/arp.h"       // Importa la estructura arp_header para manejar mensajes ARP.
 #include "timerms.h"   // Habilita el control del flujo del programa mediante temporizadores en milisegundos.  
 #include <arpa/inet.h> // Facilita las funciones htons  y ntohs para traducir los números a un formato universal, garantizando que todos los ordenadores los lean de la misma forma.
 #include <string.h>    // Proporciona funciones de manipulación a nivel de bytes (memcpy, memset, memcmp) para operar con IPs y MACs.

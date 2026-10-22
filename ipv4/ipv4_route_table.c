@@ -1,9 +1,24 @@
 #include "ipv4_route_table.h"
+#include "../eth/eth.h"
+#include "../arp/arp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <winsock2.h>
+struct ipv4_header {
+  uint8_t version_ihl;
+  uint8_t tos;
+  uint16_t total_length;
+  uint16_t identification;
+  uint16_t flags_fragment;
+  uint8_t ttl;
+  uint8_t protocol;
+  uint16_t checksum;
+  ipv4_addr_t src;
+  ipv4_addr_t dst;
+} __attribute__((__packed__));
 
 
 /* ipv4_route_t * ipv4_route_create
@@ -409,8 +424,7 @@ ipv4_route_t * ipv4_route_table_remove ( ipv4_route_table_t * table, int index )
  *   Esta función devuelve 'NULL' si no no existe ninguna ruta para alcanzar
  *   la dirección indicada, o si no ha sido posible realizar la búsqueda.
  */
-ipv4_route_t * ipv4_route_table_lookup ( ipv4_route_table_t * table, 
-                                         ipv4_addr_t addr )
+ipv4_route_t * ipv4_route_table_lookup ( ipv4_route_table_t * table, ipv4_addr_t addr )
 {
   ipv4_route_t * best_route = NULL;
   int best_route_prefix = -1;
@@ -717,10 +731,69 @@ void ipv4_route_table_print ( ipv4_route_table_t * table )
 }
 
 int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned char * payload, int payload_len) {
+  if ((layer == NULL) || (dst == NULL) || (payload == NULL) || (payload_len <= 0)) {
+    return -1;
+  }
   /* 1. Rellenar datagrama IPv4 (cabecera + datos) */
+  if (payload_len > ETH_MTU - (int) sizeof(struct ipv4_header)) {
+    return -1;
+  }
+
+  struct ipv4_header header = {0};
+  int datagram_len = sizeof(header) + payload_len;
+  unsigned char datagram[ETH_MTU];
+
+  header.version_ihl = 0x45; /* IPv4, cabecera de 5 palabras (20 bytes) */
+  header.total_length = htons(datagram_len);
+  header.ttl = 64;
+  header.protocol = protocol;
+  memcpy(header.src, layer->src_addr, IPv4_ADDR_SIZE);
+  memcpy(header.dst, dst, IPv4_ADDR_SIZE);
+  header.checksum = htons(ipv4_checksum((unsigned char *) &header, sizeof(header)));
+
+  memcpy(datagram, &header, sizeof(header));
+  memcpy(datagram + sizeof(header), payload, payload_len);
+
   /* 2. Obtener siguiente salto con ipv4_route_table_lookup () */
+  ipv4_route_t * route = ipv4_route_table_lookup(layer->route_table, dst);
+
+  if (route == NULL) {
+    return -1; //If no route found, return error
+  }
+
+  ipv4_addr_t next_hop;
+  if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
+    memcpy(next_hop, dst, IPv4_ADDR_SIZE); //Directly connected, use destination address
+  } else {
+    memcpy(next_hop, route->gateway_addr, IPv4_ADDR_SIZE); //Use gateway
+  }
+
   /* 3. Averiguar dirección MAC sig. salto con arp_resolve() */
+  eth_iface_t * iface = eth_open(route->iface);
+  if (iface == NULL) {
+    return -1;
+  }
+
+
+  mac_addr_t next_hop_mac;
+  int arp_result = arp_resolve(iface, next_hop, next_hop_mac);
+
+  if (arp_result != 0) {
+  eth_close(iface);
+  return -1;
+  }
+
   /* ¡OJO! Gestionar caso destino directamente conectado */
   /* 4. Enviar datagrama con eth_send() */
+  int sent = eth_send(iface, next_hop_mac, 0x0800, datagram, datagram_len);
+  eth_close(iface);
+  if (sent != datagram_len) {
+    return -1;
+  }
+
   /* 5. Devolver longitud datos (payload) enviados */
+  if (sent != payload_len) {
+    return -1;
+  }
+  return payload_len;
 }

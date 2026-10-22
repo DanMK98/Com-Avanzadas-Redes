@@ -1,4 +1,4 @@
-#include "eth.h"
+#include "../eth/eth.h"
 #include <rawnet.h>
 #include <timerms.h>
 
@@ -163,8 +163,7 @@ void eth_getaddr ( eth_iface_t * iface, mac_addr_t addr )
  *   La función devuelve '-1' si se ha producido algún error. 
  */
 int eth_send 
-( eth_iface_t * iface, 
-  mac_addr_t dst, uint16_t type, unsigned char * payload, int payload_len )
+( eth_iface_t * iface, mac_addr_t dst, uint16_t type, unsigned char * payload, int payload_len )
 {
   int bytes_sent;
 

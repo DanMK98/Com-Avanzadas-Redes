@@ -1,5 +1,5 @@
-#include "eth.h"  // Importa las funciones y estructuras necesarias para manejar la capa Ethernet y enviar tramas por la red.
-#include "ipv4.h" // Proporciona los tipos de datos específicos para almacenar y operar con direcciones IPv4.
+#include "../eth/eth.h"  // Importa las funciones y estructuras necesarias para manejar la capa Ethernet y enviar tramas por la red.
+#include "../ipv4/ipv4.h" // Proporciona los tipos de datos específicos para almacenar y operar con direcciones IPv4.
 
 struct arp_header {
    uint16_t hw_type;    // Tipo de hardware (Ethernet = 1).
