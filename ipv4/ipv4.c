@@ -2,6 +2,7 @@
 #include "ipv4_route_table.h"
 #include "../eth/eth.h"
 #include "../arp/arp.h"
+#include "ipv4_config.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -111,6 +112,54 @@ uint16_t ipv4_checksum ( unsigned char * data, int len ) {
    sum = ~sum;
 
    return (uint16_t) sum;
+}
+
+ipv4_layer_t* ipv4_open(char * file_conf, char * file_conf_route) {
+   if (file_conf == NULL || file_conf_route == NULL ||
+       file_conf[0] == '\0' || file_conf_route[0] == '\0') {
+      return NULL;
+   }
+
+   ipv4_layer_t * layer = malloc(sizeof(ipv4_layer_t));
+   if (layer == NULL) {
+        return NULL;
+   }
+
+   // 1. Crear tabla de rutas -> routing_table
+   layer->route_table = ipv4_route_table_create();
+   if (layer->route_table == NULL) {
+      free(layer);
+      return NULL;
+   }
+   // 2. Leer direcciones y subred de file_conf
+   char iface_name[IFACE_NAME_MAX_LENGTH];
+   if (ipv4_config_read(file_conf, iface_name,
+                        layer->src_addr, layer->netmask) != 0) {
+      ipv4_route_table_free(layer->route_table);
+      free(layer);
+      return NULL;
+   }
+
+   // 3. Leer tabla de reenvío IP de file_conf_route
+   if (ipv4_route_table_read(file_conf_route, layer->route_table) < 0) {
+      ipv4_route_table_free(layer->route_table);
+      free(layer);
+      return NULL;
+   }
+
+   // 4. Inicializar capa Ethernet con eth_open()
+   layer->eth_iface = eth_open(iface_name);
+
+   if (layer->eth_iface == NULL) {
+      // 4.1. Liberar la memoria de la tabla de enrutamiento creada en el paso 1
+      ipv4_route_table_free(layer->route_table);
+      // 4.2. Liberar la memoria de la estructura general de la capa IPv4
+      free(layer);
+
+      return NULL;
+   }
+
+   return layer;
 }
 
 int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned char * payload, int payload_len) {
