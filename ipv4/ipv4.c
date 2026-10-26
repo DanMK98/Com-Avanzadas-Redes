@@ -1,5 +1,7 @@
 #include "ipv4.h"
-
+#include "ipv4_route_table.h"
+#include "../eth/eth.h"
+#include "../arp/arp.h"
 #include <stdio.h>
 #include <stdlib.h>
 
