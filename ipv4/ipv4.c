@@ -8,6 +8,8 @@
 #include <string.h> /* For memcpy(), memcmp(), etc*/
 #include <arpa/inet.h> /* For htons(), ntohs(), etc. */
 
+#include <timerms.h> /* For gettimeofday() */
+
 /* Dirección IPv4 a cero: "0.0.0.0" */
 ipv4_addr_t IPv4_ZERO_ADDR = { 0, 0, 0, 0 };
 
@@ -174,4 +176,83 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
 
   /* 5. Devolver longitud datos (payload) enviados */
   return payload_len;
+}
+
+int ipv4_recv(ipv4_layer_t *layer, ipv4_addr_t src,
+              uint8_t protocol, unsigned char *buffer,
+              int buffer_len, long int timeout)
+{
+  if (layer == NULL || layer->eth_iface == NULL ||
+      src == NULL || buffer == NULL || buffer_len <= 0) {
+    return -1;
+  }
+
+  unsigned char datagram[ETH_MTU];
+  mac_addr_t src_mac;
+  timerms_t timer;
+  int first_attempt = 1;
+
+  if (timeout >= 0) {
+    timerms_reset(&timer, timeout);
+  }
+
+  for (;;) {
+    long int remaining = -1;
+    /* Preserve the original deadline when discarding packets. */
+    if (timeout >= 0) {
+      remaining = timerms_left(&timer);
+      if (remaining <= 0) {
+        if (!first_attempt) {
+          return 0;
+        }
+        remaining = 0;
+      }
+    }
+    first_attempt = 0;
+
+    int received = eth_recv(layer->eth_iface, src_mac, 0x0800,
+                            datagram, sizeof(datagram), remaining);
+    if (received <= 0) {
+      return received;
+    }
+    if (received < (int) sizeof(struct ipv4_header) ||
+        received > (int) sizeof(datagram)) {
+      continue;
+    }
+
+    struct ipv4_header header;
+    memcpy(&header, datagram, sizeof(header));
+    int version = header.version_ihl >> 4;
+    int header_len = (header.version_ihl & 0x0F) * 4;
+    int total_len = ntohs(header.total_length);
+    if (version != 4 || header_len < (int) sizeof(header) ||
+        header_len > received || total_len < header_len ||
+        total_len > received) {
+      continue;
+    }
+    if (ipv4_checksum(datagram, header_len) != 0 ||
+        header.ttl == 0 || header.protocol != protocol) {
+      continue;
+    }
+    /* Initial implementation: local unicast only. */
+    if (memcmp(header.dst, layer->src_addr, IPv4_ADDR_SIZE) != 0) {
+      continue;
+    }
+    /* Reject reserved flag, MF, and nonzero fragment offset; allow DF. */
+    if ((ntohs(header.flags_fragment) & 0xBFFF) != 0) {
+      continue;
+    }
+
+    int payload_len = total_len - header_len;
+    /* Zero is reserved for timeout by this API. */
+    if (payload_len == 0) {
+      continue;
+    }
+    if (payload_len > buffer_len) {
+      return -1;
+    }
+    memcpy(buffer, datagram + header_len, payload_len);
+    memcpy(src, header.src, IPv4_ADDR_SIZE);
+    return payload_len;
+  }
 }

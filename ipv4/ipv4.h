@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "../eth/eth.h"
+
 #define IPv4_ADDR_SIZE 4
 #define IPv4_STR_MAX_LENGTH 16
 
@@ -19,6 +21,7 @@ typedef struct ipv4_route_table ipv4_route_table_t;
 typedef struct ipv4_layer {
   ipv4_route_table_t * route_table;
   ipv4_addr_t src_addr;
+  eth_iface_t * eth_iface;
 } ipv4_layer_t;
 
 
@@ -75,5 +78,9 @@ uint16_t ipv4_checksum ( unsigned char * data, int len );
 int ipv4_send(ipv4_layer_t *layer, ipv4_addr_t dst,
               uint8_t protocol, unsigned char *payload,
               int payload_len);
+
+int ipv4_recv(ipv4_layer_t *layer, ipv4_addr_t src,
+              uint8_t protocol, unsigned char *buffer,
+              int buffer_len, long int timeout);
 
 #endif /* _IPv4_H */

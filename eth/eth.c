@@ -269,6 +269,8 @@ int eth_recv
   int is_my_mac;
 
   do {
+    is_my_mac = 0;
+    is_target_type = 0;
     long int time_left = timerms_left(&timer);
 
     /* Recibir trama del interfaz Ethernet y procesar errores */
