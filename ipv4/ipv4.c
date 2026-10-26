@@ -162,6 +162,20 @@ ipv4_layer_t* ipv4_open(char * file_conf, char * file_conf_route) {
    return layer;
 }
 
+int ipv4_close(ipv4_layer_t *layer)
+{
+  if (layer == NULL) {
+    return -1;
+  }
+  int result = 0;
+  if (layer->eth_iface != NULL) {
+    result = eth_close(layer->eth_iface);
+  }
+  ipv4_route_table_free(layer->route_table);
+  free(layer);
+  return result;
+}
+
 int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned char * payload, int payload_len) {
   if ((layer == NULL) || (dst == NULL) || (payload == NULL) || (payload_len <= 0)) {
     return -1;

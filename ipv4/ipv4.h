@@ -85,5 +85,6 @@ int ipv4_recv(ipv4_layer_t *layer, ipv4_addr_t src,
               int buffer_len, long int timeout);
 
 ipv4_layer_t *ipv4_open(char *file_conf, char *file_conf_route);
+int ipv4_close(ipv4_layer_t *layer);
 
 #endif /* _IPv4_H */

@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <timerms.h>
+#include <stdlib.h>
 
 #define UDP_PROTOCOL 17
 #define UDP_HEADER_SIZE 8
@@ -133,4 +134,39 @@ int udp_recv(udp_layer_t *layer, ipv4_addr_t src,
 
         return payload_len;
     }
+
+}
+
+udp_layer_t *udp_open(char *file_conf, char *file_conf_route,
+                      uint16_t local_port)
+{
+    if (local_port == 0) {
+        return NULL;
+    }
+
+    udp_layer_t *layer = malloc(sizeof(*layer));
+    if (layer == NULL) {
+        return NULL;
+    }
+
+    layer->ipv4 = ipv4_open(file_conf, file_conf_route);
+    if (layer->ipv4 == NULL) {
+        free(layer);
+        return NULL;
+    }
+
+    layer->local_port = local_port;
+    return layer;
+}
+
+int udp_close(udp_layer_t *layer)
+{
+    if (layer == NULL) {
+        return -1;
+    }
+
+    int result = ipv4_close(layer->ipv4);
+    free(layer);
+
+    return result;
 }
