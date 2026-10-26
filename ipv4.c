@@ -114,6 +114,11 @@ ipv4_layer_t* ipv4_open(char * file_conf, char * file_conf_route) {
    layer->iface = eth_open(iface_name);
 
    if (layer->iface == NULL) {
+      // 4.1. Liberar la memoria de la tabla de enrutamiento creada en el paso 1
+      ipv4_route_table_free(layer->routing_table);
+      // 4.2. Liberar la memoria de la estructura general de la capa IPv4
+      free(layer);
+      
       return NULL;
    }
    
@@ -174,7 +179,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
    if (sent != datagram_len) {
       return -1;
    }
-   
+
    return payload_len;
 }
 
