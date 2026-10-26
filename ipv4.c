@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Dirección IPv4 a cero: "0.0.0.0" */
 ipv4_addr_t IPv4_ZERO_ADDR = { 0, 0, 0, 0 };
@@ -93,12 +94,6 @@ uint16_t ipv4_checksum ( unsigned char * data, int len ) {
    return (uint16_t) sum;
 }
 
-typedef struct ipv4_layer {
-eth_iface_t ∗ iface; /∗ iface=eth_open("eth1"); ∗/
-ipv4_addr_t addr;    /∗ 192.168.1.1 ∗/
-ipv4_addr_t netmask; /∗ 255.255.255.0 ∗/
-ipv4_route_table_t ∗ routing_table;
-} ipv4_ layer_t ;
 
 ipv4_layer_t* ipv4_open(char * file_conf, char * file_conf_route) {
    ipv4_layer_t * layer = malloc(sizeof(ipv4_layer_t));
@@ -142,7 +137,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
    header.total_length = htons(datagram_len);
    header.ttl = 64;
    header.protocol = protocol;
-   memcpy(header.src, layer->src_addr, IPv4_ADDR_SIZE);
+   memcpy(header.src, layer->addr, IPv4_ADDR_SIZE);
    memcpy(header.dst, dst, IPv4_ADDR_SIZE);
    header.checksum = htons(ipv4_checksum((unsigned char *) &header, sizeof(header)));
 
@@ -150,7 +145,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
    memcpy(datagram + sizeof(header), payload, payload_len);
 
    /* 2. Obtener siguiente salto con ipv4_route_table_lookup () */
-   ipv4_route_t * route = ipv4_route_table_lookup(layer->route_table, dst);
+   ipv4_route_t * route = ipv4_route_table_lookup(layer->routing_table, dst);
 
    if (route == NULL) {
       return -1; //If no route found, return error
@@ -164,32 +159,22 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
    }
 
    /* 3. Averiguar dirección MAC sig. salto con arp_resolve() */
-   eth_iface_t * iface = eth_open(route->iface);
-   if (iface == NULL) {
-      return -1;
-   }
-
 
    mac_addr_t next_hop_mac;
-   int arp_result = arp_resolve(iface, next_hop, next_hop_mac);
+
+   int arp_result = arp_resolve(layer->iface, next_hop, next_hop_mac);
 
    if (arp_result != 0) {
-      eth_close(iface);
       return -1;
    }
 
    /* ¡OJO! Gestionar caso destino directamente conectado */
    /* 4. Enviar datagrama con eth_send() */
-   int sent = eth_send(iface, next_hop_mac, 0x0800, datagram, datagram_len);
-   eth_close(iface);
+   int sent = eth_send(layer->iface, next_hop_mac, 0x0800, datagram, datagram_len);
    if (sent != datagram_len) {
       return -1;
    }
-
-   /* 5. Devolver longitud datos (payload) enviados */
-   if (sent != payload_len) {
-      return -1;
-   }
+   
    return payload_len;
 }
 
