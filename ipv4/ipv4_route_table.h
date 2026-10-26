@@ -18,20 +18,12 @@
  * modificar las funciones asociadas.
  */
 
- typedef struct ipv4_route_table ipv4_route_table_t;
- 
-typedef struct ipv4_layer {
-  ipv4_route_table_t * route_table;
-  ipv4_addr_t src_addr;
-} ipv4_layer_t;
-
-typedef struct ipv4_route {
-  ipv4_addr_t subnet_addr;
-  ipv4_addr_t subnet_mask;
-  char iface[IFACE_NAME_MAX_LENGTH];
-  ipv4_addr_t gateway_addr;
-  ipv4_layer_t * layer;
-} ipv4_route_t;
+  typedef struct ipv4_route {
+    ipv4_addr_t subnet_addr;
+    ipv4_addr_t subnet_mask;
+    char iface[IFACE_NAME_MAX_LENGTH];
+    ipv4_addr_t gateway_addr;
+  } ipv4_route_t;
 
 
 /* ipv4_route_t * ipv4_route_create
@@ -161,7 +153,6 @@ void ipv4_route_free ( ipv4_route_t * route );
  *   La función devuelve 'NULL' si no ha sido posible reservar memoria para
  *   crear la tabla de rutas.
  */
-ipv4_route_table_t * ipv4_route_table_create();
 
 
 /* int ipv4_route_table_add ( ipv4_route_table_t * table, 

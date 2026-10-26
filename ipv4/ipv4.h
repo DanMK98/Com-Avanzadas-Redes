@@ -14,6 +14,15 @@ extern ipv4_addr_t IPv4_ZERO_ADDR;
 /* Logitud máxmima del nombre de un interfaz de red */
 #define IFACE_NAME_MAX_LENGTH 32
 
+typedef struct ipv4_route_table ipv4_route_table_t;
+ 
+typedef struct ipv4_layer {
+  ipv4_route_table_t * route_table;
+  ipv4_addr_t src_addr;
+} ipv4_layer_t;
+
+
+
 
 /* void ipv4_addr_str ( ipv4_addr_t addr, char* str );
  *
@@ -63,5 +72,8 @@ int ipv4_str_addr ( char* str, ipv4_addr_t addr );
  */
 uint16_t ipv4_checksum ( unsigned char * data, int len );
 
+int ipv4_send(ipv4_layer_t *layer, ipv4_addr_t dst,
+              uint8_t protocol, unsigned char *payload,
+              int payload_len);
 
 #endif /* _IPv4_H */

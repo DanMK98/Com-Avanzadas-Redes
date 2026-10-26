@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <string.h> /* For memcpy(), memcmp(), etc*/
+#include <arpa/inet.h> /* For htons(), ntohs(), etc. */
+
 /* Dirección IPv4 a cero: "0.0.0.0" */
 ipv4_addr_t IPv4_ZERO_ADDR = { 0, 0, 0, 0 };
 
