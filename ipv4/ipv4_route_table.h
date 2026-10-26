@@ -155,6 +155,8 @@ void ipv4_route_free ( ipv4_route_t * route );
  */
 
 
+ipv4_route_table_t *ipv4_route_table_create(void);
+
 /* int ipv4_route_table_add ( ipv4_route_table_t * table, 
  *                            ipv4_route_t * route );
  * DESCRIPCIÓN: 
