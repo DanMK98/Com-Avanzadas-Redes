@@ -222,7 +222,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
 
 
   mac_addr_t next_hop_mac;
-  int arp_result = arp_resolve(iface, next_hop, next_hop_mac);
+  int arp_result = arp_resolve(iface, layer->src_addr, next_hop, next_hop_mac);
 
   if (arp_result != 0) {
   eth_close(iface);

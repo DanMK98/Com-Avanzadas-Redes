@@ -35,15 +35,3 @@ Expected client output includes:
 IPv4 echo verified: 10 bytes from 192.168.1.200
 Hello IPv4
 ```
-
-CLIENT
-rawnetcc /tmp/ipv4_client ipv4/ipv4_client.c ipv4/ipv4.c ipv4/ipv4_config.c ipv4/ipv4_route_table.c arp/arp.c eth/eth.c
-
-SERVER
-rawnetcc /tmp/ipv4_server ipv4/ipv4_server.c ipv4/ipv4.c ipv4/ipv4_config.c ipv4/ipv4_route_table.c arp/arp.c eth/eth.c
-
-CLIENT
-/tmp/ipv4_client ipv4/ipv4_config_client.txt ipv4/ipv4_route_table_client.txt 192.168.1.200 "Hello IPv4"
-
-SERVER
-/tmp/ipv4_server ipv4/ipv4_config_server.txt ipv4/ipv4_route_table_server.txt

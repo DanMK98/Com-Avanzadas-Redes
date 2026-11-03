@@ -17,4 +17,4 @@ struct arp_header {
 // ipv4_addr_t dest: Es la IP objetivo (la dirección lógica) de la que necesitas averiguar su MAC.
 // mac_addr_t mac: Es la variable que pasas como contenedor vacío para que la función, al recibir la respuesta, escriba ahí dentro la MAC física descubierta.
 // int: Indica que la función devuelve un número (normalmente un 1 si todo salió bien y logró encontrar la MAC, o un -1 si pasaron los 2 segundos y nadie respondió).
-int arp_resolve ( eth_iface_t * iface, ipv4_addr_t dest, mac_addr_t mac );
+int arp_resolve ( eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t dest, mac_addr_t mac );

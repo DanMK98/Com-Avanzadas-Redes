@@ -4,7 +4,7 @@
 #include <string.h>    // Proporciona funciones de manipulación a nivel de bytes (memcpy, memset, memcmp) para operar con IPs y MACs.
 
 // Define las instrucciones reales de la función anunciada en el archivo .h, utilizando la interfaz y la IP recibidas para buscar la MAC y devolver el resultado.
-int arp_resolve ( eth_iface_t * iface, ipv4_addr_t dest, mac_addr_t mac ) {
+int arp_resolve ( eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t dest, mac_addr_t mac ) {
     
    // Creamos una variable vacía llamada 'peticion' utilizando el formato arp_header como molde para organizar y rellenar los datos del mensaje antes de enviarlo.
    struct arp_header peticion;
@@ -26,7 +26,7 @@ int arp_resolve ( eth_iface_t * iface, ipv4_addr_t dest, mac_addr_t mac ) {
 
    // Como todavía no se dispone de una dirección IPv4 configurada, la dirección de red origen del mensaje ARP debe ser 0.0.0.0, y con MAC pasa lo mismo.
    // memset(destino, valor, tamaño)-> Rellena un bloque de memoria contiguo de un tamaño determinado escribiendo un mismo valor en todos sus bytes.
-   memset(peticion.src_ip, 0, sizeof(ipv4_addr_t)); // Inicializa los 4 bytes del campo src_ip con ceros, configurando la dirección 0.0.0.0. 
+   memcpy(peticion.src_ip, src_ip, sizeof(peticion.src_ip)); //  
    memset(peticion.dst_mac, 0, sizeof(mac_addr_t)); // Inicializa los 6 bytes del campo dst_mac con ceros (00:00:00:00:00:00) porque la dirección física del destinatario es el dato que estamos buscando.
    
    // PASO 3: Transmisión. Difunde la petición ARP a toda la red local usando la MAC universal.
