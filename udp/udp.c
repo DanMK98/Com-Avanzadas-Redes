@@ -64,7 +64,7 @@ int udp_recv(udp_layer_t *layer, ipv4_addr_t src,
         layer->local_port == 0 || src == NULL ||
         src_port == NULL || buffer == NULL || buffer_len <= 0) {
         return -1;
-    }
+        }
 
     unsigned char datagram[UDP_MAX_DATAGRAM];
     ipv4_addr_t sender;
