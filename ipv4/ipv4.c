@@ -215,11 +215,15 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
   }
 
   /* 3. Averiguar dirección MAC sig. salto con arp_resolve() */
-  eth_iface_t * iface = eth_open(route->iface);
+  eth_iface_t * iface = layer->eth_iface;
   if (iface == NULL) {
     return -1;
   }
 
+  const char *iface_name = eth_getname(iface);
+  if (iface_name == NULL || strcmp(iface_name, route->iface) != 0) {
+    return -1;
+  }
 
   mac_addr_t next_hop_mac;
   int arp_result = arp_resolve(iface, layer->src_addr, next_hop, next_hop_mac);
@@ -232,7 +236,6 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
   /* ¡OJO! Gestionar caso destino directamente conectado */
   /* 4. Enviar datagrama con eth_send() */
   int sent = eth_send(iface, next_hop_mac, 0x0800, datagram, datagram_len);
-  eth_close(iface);
   if (sent != datagram_len) {
     return -1;
   }
