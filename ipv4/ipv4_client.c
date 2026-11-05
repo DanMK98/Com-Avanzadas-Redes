@@ -4,8 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Shared by the two echo applications; not ICMP or UDP. */
+// Número de protocolo experimental en IPv4 usado para identificar los paquetes de este servidor de eco sin interferir con protocolos reales.
 #define ECHO_PROTOCOL 253
+
 #define ECHO_MAX_PAYLOAD (ETH_MTU - 20)
 
 static int parse_address(char *text, ipv4_addr_t address) {
