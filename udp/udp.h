@@ -12,7 +12,7 @@ struct udp_header {
 
 typedef struct udp_layer {
    ipv4_layer_t *ipv4;
-   uint16_t local_port; /* Host byte order */
+   uint16_t local_port; // puerto local por el que esta capa va a recibir y enviar información.
 } udp_layer_t;
 
 /* local_port uses host byte order; zero is not supported. */
