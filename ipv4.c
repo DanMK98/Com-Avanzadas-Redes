@@ -1,8 +1,13 @@
-#include "ipv4.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "ipv4.h"
+#include "ipv4_route_table.h"
+#include "ipv4_config.h"
+#include "arp.h"
+#include "timerms.h"
+#include <arpa/inet.h>
 
 struct ipv4_header {
    uint8_t version_ihl;
@@ -15,7 +20,7 @@ struct ipv4_header {
    uint16_t checksum;
    ipv4_addr_t src;
    ipv4_addr_t dst;
-} __attribute__((__packed__)); esta parte no estaba en mi codigo 
+} __attribute__((__packed__)); 
 
 /* Dirección IPv4 a cero: "0.0.0.0" */
 ipv4_addr_t IPv4_ZERO_ADDR = { 0, 0, 0, 0 };
@@ -180,6 +185,8 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
    int datagram_len = sizeof(header) + payload_len;
    unsigned char datagram[ETH_MTU];
 
+   // htons() -> Convierte un número entero de 16 bits desde el formato de bytes propio de tu ordenador (host byte order) al formato estándar requerido por la red (Big-Endian).
+   // memcpy() -> Copia un bloque de memoria de una dirección a otra, byte por byte.
    // Configura los parámetros básicos de la cabecera IPv4: versión, longitud total del datagrama, tiempo de vida (TTL) y el protocolo encapsulado.
    header.version_ihl = 0x45; 
    header.total_length = htons(datagram_len);
@@ -192,13 +199,16 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
    memcpy(datagram, &header, sizeof(header));
    memcpy(datagram + sizeof(header), payload, payload_len);
 
-   /* 2. Obtener siguiente salto con ipv4_route_table_lookup () */
+   // Verifica si la IP destino está en esta subred lógica (delimitada por el router); si coincide devuelve la mascara de la IP (ej. el 24 de /24), o -1 si no.
    ipv4_route_t * route = ipv4_route_table_lookup(layer->routing_table, dst);
-
    if (route == NULL) {
-      return -1; //If no route found, return error
+      return -1; 
    }
 
+   // Gateway: es la IP del router que nos conecta con otras redes. 
+   // memcmp() ->Compara byte por byte dos bloques de memoria y devuelve 0 si su contenido es exactamente idéntico.
+   // Variables: 'next_hop' guardará la IP del equipo físico al que entregaremos el paquete, 'route->gateway_addr' es la IP del router.
+   // Evalúa si el destinatario está en nuestra misma red local (gateway 0.0.0.0) para enviarle el paquete directamente a su IP, o si está en otra red, asignando el envío a la IP del router.
    ipv4_addr_t next_hop;
    if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
       memcpy(next_hop, dst, IPv4_ADDR_SIZE); //Directly connected, use destination address
@@ -206,75 +216,92 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
       memcpy(next_hop, route->gateway_addr, IPv4_ADDR_SIZE); //Use gateway
    }
 
-   /* 3. Averiguar dirección MAC sig. salto con arp_resolve() */
-
+   // Averiguar dirección MAC sig. salto con arp_resolve() 
+   // Si arp_resolve() devuelve 0, significa que la dirección MAC del siguiente salto se ha resuelto correctamente y se ha almacenado en 'next_hop_mac'. Si devuelve -1, significa que no se pudo resolver la dirección MAC y la función ipv4_send() también devolverá -1 para indicar un error.
    mac_addr_t next_hop_mac;
-
    int arp_result = arp_resolve(layer->iface, layer->addr, next_hop, next_hop_mac);
 
    if (arp_result != 0) {
       return -1;
    }
 
-   /* ¡OJO! Gestionar caso destino directamente conectado */
-   /* 4. Enviar datagrama con eth_send() */
+   // // eth_send()-> Empaqueta un bloque de datos en crudo dentro de una trama Ethernet estándar y lo transmite físicamente por la interfaz.
+   // sent devuelve el número de bytes que realmente se enviaron. Si no coincide con la longitud del datagrama, significa que hubo un error en la transmisión y la función devuelve -1.
    int sent = eth_send(layer->iface, next_hop_mac, 0x0800, datagram, datagram_len);
    if (sent != datagram_len) {
       return -1;
    }
 
+   // Devuelve la longitud de los datos que se han enviado correctamente.
    return payload_len;
 }
 
+// Layer, heredado de ipv4_open.
+// sender: Variable donde la función guardará automáticamente la dirección IP del remitente que nos envió el paquete.
+// protocol: Es el número que identifica qué protocolo específico queremos escuchar (ignorando el resto del tráfico).
+// El 'buffer' apunta al espacio de memoria donde se guardarán los datos extraídos, mientras que 'buf_len' indica su capacidad máxima para evitar desbordamientos.
+// timeout: Tiempo máximo de espera en milisegundos antes de cancelar la escucha (un valor negativo indica espera infinita).
+// Escucha la red esperando un datagrama IPv4 dirigido a nuestra IP, le quita la cabecera para extraer los datos de usuario y los vuelca en el buffer, devolviendo el número de bytes útiles recibidos.
 int ipv4_recv(ipv4_layer_t * layer, ipv4_addr_t sender, uint8_t protocol, unsigned char buffer[], int buf_len, long int timeout) {
    if (layer == NULL) return -1;
     
+   // timerms_reset(puntero, tiempo)-> Configura y arranca un cronómetro pasándole la dirección de memoria de la variable temporal y el tiempo límite en milisegundos.
+   timerms_t timer;
    timerms_t timer;
    timerms_reset(&timer, timeout);
     
+   // 'src_mac' servirá para atrapar la dirección física (MAC) de quien nos envíe el paquete, y 'datagram' actúa como un contenedor para almacenar todos los bytes crudos que acaban de entrar por la tarjeta de red.
    mac_addr_t src_mac;
    unsigned char datagram[ETH_MTU];
     
-   // 1. Entrar en bucle (do while) con temporizador
+   // Entra en bucle (do while) con temporizador
    do {
+      // timerms_left(puntero)-> Consulta el reloj interno y devuelve la cantidad exacta de milisegundos que le restan al temporizador antes de agotarse.
       long int time_left = timerms_left(&timer);
         
-      // 2. Escuchar datagramas IPv4 con eth_recv() (EtherType IPv4 = 0x0800)
+      // eth_recv(interfaz, parte de fuera del sobre, protocolo, destino, tamaño, tiempo)-> Escucha la red, guarda el remitente exterior y el mensaje en las variables, y devuelve únicamente un número: los bytes capturados (o -1 si se agota el tiempo).
       int bytes_leidos = eth_recv(layer->iface, src_mac, 0x0800, datagram, ETH_MTU, time_left);
         
       if (bytes_leidos > 0) {
+         // Creamos un puntero a la cabecera IPv4 para poder acceder fácilmente a sus campos dentro del datagrama recibido.
          struct ipv4_header *header = (struct ipv4_header *) datagram;
             
-         // 3. Comprobar dirección destino y protocolo
+         // memcmp() ->Compara byte por byte dos bloques de memoria y devuelve 0 si su contenido es exactamente idéntico.
+         // Comprueba que el paquete va dirigido exactamente a nuestra propia IP y que además utiliza el protocolo que estamos esperando escuchar.
          if (header->protocol == protocol && memcmp(header->dst, layer->addr, IPv4_ADDR_SIZE) == 0) {
                 
-            // 4. Copiar datos y dirección origen
+            // Copiar la dirección IP del que envío el paquete desde la cabecera IPv4 al espacio de memoria proporcionado por el usuario para que pueda identificar quién envió el paquete.
             memcpy(sender, header->src, IPv4_ADDR_SIZE);
                 
-            // Extraer IHL descartando la versión (máscara 0x0F) y multiplicar por 4 bytes
+            // El IHL (Internet Header Length) indica el tamaño de la cabecera IPv4 en palabras de 32 bits.
+            // ntohs()-> actúa como un traductor automático: reordena los bytes que llegan por la red para que nuestro procesador no los lea al revés y pueda entender correctamente el mensaje del otro ordenador.
+            // Extrae la longitud aislando los 4 últimos bits con la máscara 0x0F y multiplica el valor resultante por 4 para obtener el tamaño total de la cabecera en bytes.
             int header_len = (header->version_ihl & 0x0F) * 4;
+            // Calcula el tamaño exacto de los datos útiles restando la longitud de la cabecera al tamaño total del paquete, usando ntohs() para traducir ese número al formato de tu ordenador.
             int payload_len = ntohs(header->total_length) - header_len;
                 
-            // Prevenir desbordamientos adaptando el tamaño de volcado al buffer local
+            // Calcula el límite seguro (bytes_a_copiar = payload_len < buf_len ? payload_len : buf_len) para evitar desbordes y copia los datos útiles al buffer saltando la cabecera.
             int bytes_a_copiar = (payload_len < buf_len) ? payload_len : buf_len;
             memcpy(buffer, datagram + header_len, bytes_a_copiar);
                 
-            // 5. Devolver longitud datos (payload) recibidos
+            // Devuelve la  longitud datos (payload) recibidos
             return bytes_a_copiar;
          }
       }
-   // Permitir espera infinita si timeout es negativo
+   // Permite espera infinita si timeout es negativo (truco para desactivar el limite de tiempo).)
    } while (timerms_left(&timer) > 0 || timeout < 0); 
     
     return -1;
 }
 
+// layer, heredado de ipv4_open.
+// Cierra la capa de red IPv4, liberando la memoria y los recursos de la interfaz de red asociados para evitar fugas de memoria, devolviendo 0 si el cierre fue exitoso.
 int ipv4_close(ipv4_layer_t * layer) {
     if (layer != NULL) {
-        // 1. Liberar tabla de rutas (layer -> routing_table)
+        // Libera tabla de rutas (layer -> routing_table)
         ipv4_route_table_free(layer->routing_table);
         
-        // 2. Cerrar capa Ethernet con eth_close()
+        // Cierra capa Ethernet con eth_close()
         eth_close(layer->iface);
         free(layer);
         

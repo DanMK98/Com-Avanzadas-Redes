@@ -1,7 +1,7 @@
 #ifndef UDP_H
 #define UDP_H
 
-#include "../ipv4/ipv4.h"
+#include "ipv4.h"
 
 struct udp_header {
    uint16_t src_port;

@@ -23,7 +23,6 @@ typedef struct ipv4_layer {
    ipv4_addr_t addr;                   // addr: La dirección IP propia que tiene asignada esta máquina para identificarse.
    ipv4_addr_t netmask;                // netmask: La máscara de subred, usada matemáticamente para calcular si una IP de destino está en tu misma red local o en una externa.
    ipv4_route_table_t * routing_table; // routing_table: La tabla de rutas (el mapa) que le dice al sistema por qué camino debe enviar los paquetes cuando el destino está fuera de tu red local.
- */
 } ipv4_layer_t;
 
 /* void ipv4_addr_str ( ipv4_addr_t addr, char* str );
