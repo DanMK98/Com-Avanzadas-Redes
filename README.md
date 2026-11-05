@@ -47,6 +47,35 @@ The source uses POSIX networking headers and is not ready to build natively with
 
 There is currently no Makefile or automated build configuration. Run these example commands from the repository root in a Linux shell, after installing the external dependencies.
 
+First, you have to add the respective addresses for each server and client. As convention, we will use the "192.168.1.X00". For that, open the terminal on Linux and launch the following commands.
+
+Add the client IP:
+
+```sh
+sudo ip addr add 192.168.1.100/24 dev eth1
+```
+
+And finally, add the server IP:
+
+```sh
+sudo ip addr add 192.168.1.200/24 dev eth1
+```
+
+IMPORTANT: check whether the interface is up. For that, launch the following commands on each computer:
+
+```sh
+sudo ip link set eth1 up
+```
+
+To check whether you set everything well, check with the following command.
+
+```sh
+ip -br addr
+ip addr
+```
+
+These configurations disappear on each reboot, so it's necessary to assign the addresses and set the respective links up again.
+
 Build the networking examples with the course-provided wrapper. Its syntax is:
 
 ```sh
