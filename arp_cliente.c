@@ -7,7 +7,7 @@
 // La variable argc sirve para contar el número exacto de palabras introducidas en la consola al lanzar el programa (como mínimo deben ser 3: ./programa (0), eth0 (1), y la IP (2)). Por otro lado, argv es una lista que almacena el texto de cada una de esas palabras para que puedas inyectar la interfaz y la IP directamente en tu código.
 int main(int argc, char *argv[]) {
    // PASO 1: Validación de parámetros. Se comprueba que el usuario ejecuta el programa pasando la interfaz y la IP como argumentos.
-   // 1. Verificar que el usuario pasa la interfaz y la IP al ejecutar
+   // 1. Verificar que el usuario incluye el comando para iniciar el programa, la interfaz de red y la IP de destino.
    if (argc < 3) { // Este es el caso en el que el usuario no ha pasado los parámetros correctos al ejecutar el programa (que son al menos 3).
       fprintf(stderr, "Error: Debes escribir al menos 3 elementos para ejecutar el programa (ejemplo: %s eth0 192.168.1.20).\n", argv[0]);
       exit(EXIT_FAILURE);
@@ -25,8 +25,8 @@ int main(int argc, char *argv[]) {
 
    // PASO 3: Conversión de formatos. Pasar la IP de un texto legible por humanos (string) al formato interno de 4 bytes que usa la lógica de red.
    // ipv4_str_addr(recibido, traducido).
-   ipv4_addr_t dest_ip;            // Crea una variable vacía llamada 'dest_ip' usando el tipo 'ipv4_addr_t' (importado de "ipv4.h"), el cual funciona como un array de 4 casillas exactas para almacenar los 4 bytes reales de una dirección IP.
-   ipv4_str_addr(ip_str, dest_ip); // Traduce la IP desde el formato de texto humano (ej. "192.168.1.20" guardado en 'ip_str') hacia el formato numérico de red, guardando cada uno de esos 4 valores matemáticos dentro de las casillas de 'dest_ip'.
+   ipv4_addr_t trd_ip;            // Crea una variable vacía llamada 'trd_ip' usando el tipo 'ipv4_addr_t' (importado de "ipv4.h"), el cual funciona como un array de 4 casillas exactas para almacenar los 4 bytes reales de una dirección IP.
+   ipv4_str_addr(ip_str, trd_ip); // Traduce la IP desde el formato de texto humano (ej. "192.168.1.20" guardado en 'ip_str') hacia el formato numérico de red, guardando cada uno de esos 4 valores matemáticos dentro de las casillas de 'dest_ip'.
 
    // PASO 4: Variable para almacenar la MAC que nos devuelva arp_resolve.
    // mac_addr_t es un tipo de dato personalizado que funciona como un array de 6 casillas, el tamaño exacto necesario para almacenar los 6 bytes de una dirección física.
@@ -34,9 +34,10 @@ int main(int argc, char *argv[]) {
 
    // PASO 5: Ejecución del protocolo. Invoca la función central encargada de lanzar la petición ARP a la red, arrancar el temporizador y escuchar la respuesta.
    // arp_resolve(Llave_de_interfaz, IP_buscada, Contenedor_vacio)
-   int resultado = arp_resolve(iface, dest_ip, mac_resuelta); // Se pasa la llave de la interfaz de red (iface), la IP objetivo ya convertida a formato binario (dest_ip), y el contenedor vacío (mac_resuelta) para que lo rellene.
+   // IPv4_ZERO_ADDR es una constante que representa la dirección IP que equivale a 0.0.0.0
+   int resultado = arp_resolve(iface, IPv4_ZERO_ADDR, trd_ip, mac_resuelta); // Se pasa la llave de la interfaz de red (iface), la IP objetivo ya convertida a formato binario (trd_ip), y el contenedor vacío (mac_resuelta) para que lo rellene.
 
-   // PASO 6: Evaluación y muestra del resultado en pantalla.
+   // PASO 6: Evaluación y muestra del resultado en pantalla. (==0, significa 0 errores).
    if (resultado == 0) {
       // Éxito, se imprime la IP y la MAC descubierta en formato hexadecimal con dos dígitos por byte.
       printf("%s -> %02X:%02X:%02X:%02X:%02X:%02X\n", 
