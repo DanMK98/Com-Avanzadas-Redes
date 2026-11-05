@@ -4,6 +4,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct ipv4_header {
+   uint8_t version_ihl;
+   uint8_t tos;
+   uint16_t total_length;
+   uint16_t identification;
+   uint16_t flags_fragment;
+   uint8_t ttl;
+   uint8_t protocol;
+   uint16_t checksum;
+   ipv4_addr_t src;
+   ipv4_addr_t dst;
+} __attribute__((__packed__)); esta parte no estaba en mi codigo 
+
 /* Dirección IPv4 a cero: "0.0.0.0" */
 ipv4_addr_t IPv4_ZERO_ADDR = { 0, 0, 0, 0 };
 
@@ -167,8 +180,8 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
    int datagram_len = sizeof(header) + payload_len;
    unsigned char datagram[ETH_MTU];
 
-   
-   header.version_ihl = 0x45; /* IPv4, cabecera de 5 palabras (20 bytes) */
+   // Configura los parámetros básicos de la cabecera IPv4: versión, longitud total del datagrama, tiempo de vida (TTL) y el protocolo encapsulado.
+   header.version_ihl = 0x45; 
    header.total_length = htons(datagram_len);
    header.ttl = 64;
    header.protocol = protocol;
