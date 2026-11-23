@@ -1,5 +1,8 @@
 #include "ipv4.h"
+#include "ipv4_route_table.h"
 
+#include <ifaddrs.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +28,60 @@ static int parse_address(char *text, ipv4_addr_t address)
     return 0;
 }
 
+static int detect_local_address(ipv4_layer_t *layer, ipv4_addr_t destination)
+{
+    const char *iface_name = eth_getname(layer->eth_iface);
+    if (iface_name == NULL) {
+        fprintf(stderr, "Could not identify the configured interface.\n");
+        return -1;
+    }
+
+    ipv4_route_t *route = ipv4_route_table_lookup(layer->route_table, destination);
+    unsigned char *next_hop = destination;
+    if (route != NULL && memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) != 0) {
+        next_hop = route->gateway_addr;
+    }
+
+    struct ifaddrs *interfaces;
+    if (getifaddrs(&interfaces) != 0) {
+        perror("Could not list network interfaces");
+        return -1;
+    }
+
+    ipv4_route_t selected;
+    int best_prefix = -2;
+    for (const struct ifaddrs *iface = interfaces; iface != NULL; iface = iface->ifa_next) {
+        if (iface->ifa_addr == NULL || iface->ifa_addr->sa_family != AF_INET ||
+            iface->ifa_netmask == NULL || strcmp(iface->ifa_name, iface_name) != 0) {
+            continue;
+        }
+
+        const struct sockaddr_in *address = (const struct sockaddr_in *)iface->ifa_addr;
+        const struct sockaddr_in *netmask = (const struct sockaddr_in *)iface->ifa_netmask;
+        ipv4_route_t subnet = {0};
+        memcpy(subnet.subnet_addr, &address->sin_addr, IPv4_ADDR_SIZE);
+        memcpy(subnet.subnet_mask, &netmask->sin_addr, IPv4_ADDR_SIZE);
+
+        /* Prefer the most specific local subnet that reaches the next hop. */
+        int prefix = ipv4_route_lookup(&subnet, next_hop);
+        if (prefix > best_prefix ||
+            (prefix == best_prefix && memcmp(subnet.subnet_addr, layer->src_addr, IPv4_ADDR_SIZE) == 0)) {
+            selected = subnet;
+            best_prefix = prefix;
+        }
+    }
+    freeifaddrs(interfaces);
+
+    if (best_prefix == -2) {
+        fprintf(stderr, "No IPv4 address is assigned to interface %s.\n", iface_name);
+        return -1;
+    }
+
+    memcpy(layer->src_addr, selected.subnet_addr, IPv4_ADDR_SIZE);
+    memcpy(layer->netmask, selected.subnet_mask, IPv4_ADDR_SIZE);
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     if (argc != 5) {
@@ -44,6 +101,11 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Could not initialize IPv4.\n");
         return EXIT_FAILURE;
     }
+    if (detect_local_address(layer, server) != 0) {
+        ipv4_close(layer);
+        return EXIT_FAILURE;
+    }
+
     int status = EXIT_FAILURE;
     if (ipv4_send(layer, server, ECHO_PROTOCOL,
                   (unsigned char *)argv[4], (int)length) != (int)length) {

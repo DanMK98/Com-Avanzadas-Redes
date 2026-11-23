@@ -25,9 +25,13 @@ Run on the client VM (192.168.1.100), from the project root:
 ```
 
 Use two VMs connected to the same lab network, with distinct MAC addresses.
-Match the configured interfaces and IP addresses to each VM. The OS must have
-the corresponding addresses assigned so it can answer ARP; the library has no
-ARP responder. Configuration files alone do not assign OS addresses.
+Use each VM's interface name in its config and routes. The server's `IPv4Address`
+must match an address assigned to the server in Linux. The client detects its
+local IPv4 address on the configured interface. If that interface has multiple
+addresses, the client prefers the most specific subnet that contains the next
+hop and favors `IPv4Address` when it matches an assigned address with the same
+preference. Keep the `IPv4Address` and `SubnetMask` fields in the client config
+so the file can be parsed. Linux answers ARP for the assigned addresses.
 
 Expected client output includes:
 
@@ -35,3 +39,22 @@ Expected client output includes:
 IPv4 echo verified: 10 bytes from 192.168.1.200
 Hello IPv4
 ```
+
+## Experiment with the server at 192.168.1.2
+
+With `192.168.1.2/24` assigned to `eth0` in the server VM, start the server
+with the lab config.
+
+```sh
+/tmp/ipv4_server ipv4/ipv4_config_server_lab.txt ipv4/ipv4_route_table_server.txt
+```
+
+Run the client from the other VM. The client detects its local address on the
+interface named in its config.
+
+```sh
+/tmp/ipv4_client ipv4/ipv4_config_client.txt ipv4/ipv4_route_table_client.txt 192.168.1.2 "Hello IPv4"
+```
+
+The server should print `Echoed 10 bytes` and the client should print
+`IPv4 echo verified: 10 bytes from 192.168.1.2`.
