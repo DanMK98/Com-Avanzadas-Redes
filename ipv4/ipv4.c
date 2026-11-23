@@ -5,6 +5,8 @@
 #include "ipv4_config.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
 
 #include <string.h> /* For memcpy(), memcmp(), etc*/
 #include <arpa/inet.h> /* For htons(), ntohs(), etc. */
@@ -176,8 +178,8 @@ int ipv4_close(ipv4_layer_t *layer)
   return result;
 }
 
-int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned char * payload, int payload_len) {
-  if ((layer == NULL) || (dst == NULL) || (payload == NULL) || (payload_len <= 0)) {
+int ipv4_send_from (ipv4_layer_t * layer, ipv4_addr_t src, ipv4_addr_t dst, uint8_t protocol, unsigned char * payload, int payload_len) {
+  if ((layer == NULL) || (src == NULL) || (dst == NULL) || (payload == NULL) || (payload_len <= 0)) {
     return -1;
   }
   /* 1. Rellenar datagrama IPv4 (cabecera + datos) */
@@ -193,7 +195,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
   header.total_length = htons(datagram_len);
   header.ttl = 64;
   header.protocol = protocol;
-  memcpy(header.src, layer->src_addr, IPv4_ADDR_SIZE);
+  memcpy(header.src, src, IPv4_ADDR_SIZE);
   memcpy(header.dst, dst, IPv4_ADDR_SIZE);
   header.checksum = htons(ipv4_checksum((unsigned char *) &header, sizeof(header)));
 
@@ -226,7 +228,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
   }
 
   mac_addr_t next_hop_mac;
-  int arp_result = arp_resolve(iface, layer->src_addr, next_hop, next_hop_mac);
+  int arp_result = arp_resolve(iface, src, next_hop, next_hop_mac);
 
   if (arp_result != 0) {
     return -1;
@@ -243,7 +245,45 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned
   return payload_len;
 }
 
-int ipv4_recv(ipv4_layer_t *layer, ipv4_addr_t src,
+int ipv4_send(ipv4_layer_t *layer, ipv4_addr_t dst, uint8_t protocol,
+              unsigned char *payload, int payload_len)
+{
+    if (layer == NULL) {
+        return -1;
+    }
+    return ipv4_send_from(layer, layer->src_addr, dst, protocol,
+                          payload, payload_len);
+}
+
+static int ipv4_is_assigned(eth_iface_t *iface, const ipv4_addr_t address)
+{
+    const char *name = eth_getname(iface);
+    struct ifaddrs *interfaces;
+
+    if (name == NULL || getifaddrs(&interfaces) != 0) {
+        return 0;
+    }
+
+    int found = 0;
+    for (const struct ifaddrs *entry = interfaces; entry; entry = entry->ifa_next) {
+        if (entry->ifa_addr == NULL || entry->ifa_addr->sa_family != AF_INET ||
+            strcmp(entry->ifa_name, name) != 0) {
+            continue;
+        }
+
+        const struct sockaddr_in *local =
+            (const struct sockaddr_in *)entry->ifa_addr;
+        if (memcmp(&local->sin_addr, address, IPv4_ADDR_SIZE) == 0) {
+            found = 1;
+            break;
+        }
+    }
+
+    freeifaddrs(interfaces);
+    return found;
+}
+
+int ipv4_recv_to(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t local_dst, 
               uint8_t protocol, unsigned char *buffer,
               int buffer_len, long int timeout)
 {
@@ -300,7 +340,11 @@ int ipv4_recv(ipv4_layer_t *layer, ipv4_addr_t src,
       continue;
     }
     /* Initial implementation: local unicast only. */
-    if (memcmp(header.dst, layer->src_addr, IPv4_ADDR_SIZE) != 0) {
+    int accepts_destination = local_dst != NULL
+      ? ipv4_is_assigned(layer->eth_iface, header.dst)
+      : memcmp(header.dst, layer->src_addr, IPv4_ADDR_SIZE) == 0;
+
+    if (!accepts_destination) {
       continue;
     }
     /* Reject reserved flag, MF, and nonzero fragment offset; allow DF. */
@@ -318,6 +362,17 @@ int ipv4_recv(ipv4_layer_t *layer, ipv4_addr_t src,
     }
     memcpy(buffer, datagram + header_len, payload_len);
     memcpy(src, header.src, IPv4_ADDR_SIZE);
+
+    if (local_dst != NULL) {
+    memcpy(local_dst, header.dst, IPv4_ADDR_SIZE);
+    }
+
     return payload_len;
   }
+}
+
+int ipv4_recv(ipv4_layer_t *layer, ipv4_addr_t src, uint8_t protocol,
+              unsigned char *buffer, int buffer_len, long int timeout)
+{
+    return ipv4_recv_to(layer, src, NULL, protocol, buffer, buffer_len, timeout);
 }
