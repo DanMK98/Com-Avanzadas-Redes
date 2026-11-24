@@ -230,6 +230,71 @@ ipv4_layer_t *ipv4_open(char *file_conf, char *file_conf_route)
   return layer;
 }
 
+int ipv4_select_source(ipv4_layer_t *layer, ipv4_addr_t destination)
+{
+  if (layer == NULL || layer->eth_iface == NULL || destination == NULL)
+  {
+    return -1;
+  }
+  const char *iface_name = eth_getname(layer->eth_iface);
+  if (iface_name == NULL)
+  {
+    fprintf(stderr, "Could not identify the configured interface.\n");
+    return -1;
+  }
+
+  ipv4_route_t *route = ipv4_route_table_lookup(layer->route_table, destination);
+  unsigned char *next_hop = destination;
+  if (route != NULL && memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) != 0)
+  {
+    next_hop = route->gateway_addr;
+  }
+
+  struct ifaddrs *interfaces;
+  if (getifaddrs(&interfaces) != 0)
+  {
+    perror("Could not list network interfaces");
+    return -1;
+  }
+
+  ipv4_route_t selected;
+  int best_prefix = -2;
+  for (const struct ifaddrs *iface = interfaces; iface != NULL; iface = iface->ifa_next)
+  {
+    if (iface->ifa_addr == NULL || iface->ifa_addr->sa_family != AF_INET ||
+        iface->ifa_netmask == NULL || strcmp(iface->ifa_name, iface_name) != 0)
+    {
+      continue;
+    }
+
+    const struct sockaddr_in *address = (const struct sockaddr_in *)iface->ifa_addr;
+    const struct sockaddr_in *netmask = (const struct sockaddr_in *)iface->ifa_netmask;
+    ipv4_route_t subnet = {0};
+    memcpy(subnet.subnet_addr, &address->sin_addr, IPv4_ADDR_SIZE);
+    memcpy(subnet.subnet_mask, &netmask->sin_addr, IPv4_ADDR_SIZE);
+
+    /* Prefer the most specific local subnet that reaches the next hop. */
+    int prefix = ipv4_route_lookup(&subnet, next_hop);
+    if (prefix > best_prefix ||
+        (prefix == best_prefix && memcmp(subnet.subnet_addr, layer->src_addr, IPv4_ADDR_SIZE) == 0))
+    {
+      selected = subnet;
+      best_prefix = prefix;
+    }
+  }
+  freeifaddrs(interfaces);
+
+  if (best_prefix == -2)
+  {
+    fprintf(stderr, "No IPv4 address is assigned to interface %s.\n", iface_name);
+    return -1;
+  }
+
+  memcpy(layer->src_addr, selected.subnet_addr, IPv4_ADDR_SIZE);
+  memcpy(layer->netmask, selected.subnet_mask, IPv4_ADDR_SIZE);
+  return 0;
+}
+
 int ipv4_close(ipv4_layer_t *layer)
 {
   if (layer == NULL)

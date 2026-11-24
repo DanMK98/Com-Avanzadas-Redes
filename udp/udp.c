@@ -18,7 +18,7 @@ struct udp_header {
     uint16_t checksum;
 } __attribute__((__packed__));
 
-int udp_send(udp_layer_t *layer, ipv4_addr_t dst,
+int udp_send_from(udp_layer_t *layer, ipv4_addr_t src, ipv4_addr_t dst,
              uint16_t dst_port, unsigned char *payload,
              int payload_len)
 {
@@ -46,8 +46,9 @@ int udp_send(udp_layer_t *layer, ipv4_addr_t dst,
         memcpy(datagram + UDP_HEADER_SIZE, payload, payload_len);
     }
 
-    int sent = ipv4_send(layer->ipv4, dst, UDP_PROTOCOL,
-                         datagram, datagram_len);
+    int sent = src == NULL
+        ? ipv4_send(layer->ipv4, dst, UDP_PROTOCOL, datagram, datagram_len)
+        : ipv4_send_from(layer->ipv4, src, dst, UDP_PROTOCOL, datagram, datagram_len);
 
     if (sent != datagram_len) {
         return -1;
@@ -56,9 +57,9 @@ int udp_send(udp_layer_t *layer, ipv4_addr_t dst,
     return payload_len;
 }
 
-int udp_recv(udp_layer_t *layer, ipv4_addr_t src,
-             uint16_t *src_port, unsigned char *buffer,
-             int buffer_len, long int timeout)
+int udp_recv_to(udp_layer_t *layer, ipv4_addr_t src, uint16_t *src_port,
+                ipv4_addr_t local_dst, unsigned char *buffer,
+                int buffer_len, long int timeout)
 {
     if (layer == NULL || layer->ipv4 == NULL ||
         layer->local_port == 0 || src == NULL ||
@@ -67,7 +68,7 @@ int udp_recv(udp_layer_t *layer, ipv4_addr_t src,
         }
 
     unsigned char datagram[UDP_MAX_DATAGRAM];
-    ipv4_addr_t sender;
+    ipv4_addr_t sender, received_dst;
     timerms_t timer;
     int first_attempt = 1;
 
@@ -92,8 +93,10 @@ int udp_recv(udp_layer_t *layer, ipv4_addr_t src,
 
         first_attempt = 0;
 
-        int received = ipv4_recv(layer->ipv4, sender, UDP_PROTOCOL,
-                                 datagram, sizeof(datagram), remaining);
+        int received = ipv4_recv_to(layer->ipv4, sender,
+                                    local_dst != NULL ? received_dst : NULL,
+                                    UDP_PROTOCOL, datagram, sizeof(datagram),
+                                    remaining);
 
         if (received <= 0) {
             return received;
@@ -131,10 +134,33 @@ int udp_recv(udp_layer_t *layer, ipv4_addr_t src,
         memcpy(buffer, datagram + UDP_HEADER_SIZE, payload_len);
         memcpy(src, sender, IPv4_ADDR_SIZE);
         *src_port = ntohs(header.src_port);
+        if (local_dst != NULL) {
+            memcpy(local_dst, received_dst, IPv4_ADDR_SIZE);
+        }
 
         return payload_len;
     }
 
+}
+
+int udp_send(udp_layer_t *layer, ipv4_addr_t dst, uint16_t dst_port,
+             unsigned char *payload, int payload_len)
+{
+    return udp_send_from(layer, NULL, dst, dst_port, payload, payload_len);
+}
+
+int udp_recv(udp_layer_t *layer, ipv4_addr_t src, uint16_t *src_port,
+             unsigned char *buffer, int buffer_len, long int timeout)
+{
+    return udp_recv_to(layer, src, src_port, NULL, buffer, buffer_len, timeout);
+}
+
+int udp_select_source(udp_layer_t *layer, ipv4_addr_t destination)
+{
+    if (layer == NULL) {
+        return -1;
+    }
+    return ipv4_select_source(layer->ipv4, destination);
 }
 
 udp_layer_t *udp_open(char *file_conf, char *file_conf_route,

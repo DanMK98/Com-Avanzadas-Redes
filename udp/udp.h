@@ -23,4 +23,15 @@ udp_layer_t *udp_open(char *file_conf, char *file_conf_route,
 /* Frees the layer even if closing Ethernet fails. */
 int udp_close(udp_layer_t *layer);
 
+int udp_select_source(udp_layer_t *layer, ipv4_addr_t destination);
+
+/* A NULL src uses the currently selected local IP. */
+int udp_send_from(udp_layer_t *layer, ipv4_addr_t src, ipv4_addr_t dst,
+                  uint16_t dst_port, unsigned char *payload, int payload_len);
+
+/* A non-NULL local_dst receives the IPv4 destination of the accepted datagram. */
+int udp_recv_to(udp_layer_t *layer, ipv4_addr_t src, uint16_t *src_port,
+                ipv4_addr_t local_dst, unsigned char *buffer,
+                int buffer_len, long int timeout);
+
 #endif

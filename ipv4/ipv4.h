@@ -76,6 +76,8 @@ int ipv4_str_addr ( char* str, ipv4_addr_t addr );
  */
 uint16_t ipv4_checksum ( unsigned char * data, int len );
 
+int ipv4_select_source(ipv4_layer_t *layer, ipv4_addr_t destination);
+
 int ipv4_send_from(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t dst,
                    uint8_t protocol, unsigned char *payload, int payload_len);
 

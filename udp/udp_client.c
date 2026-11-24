@@ -42,6 +42,11 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
+    if (udp_select_source(udp, server) != 0) {
+        udp_close(udp);
+        return EXIT_FAILURE;
+    }
+
     int status = EXIT_FAILURE;
     if (udp_send(udp, server, server_port,
                  (unsigned char *)argv[6], (int)length) != (int)length) {

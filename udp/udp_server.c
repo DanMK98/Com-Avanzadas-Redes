@@ -42,10 +42,10 @@ int main(int argc, char *argv[])
     int status = EXIT_SUCCESS;
     while (!stop_requested) {
         unsigned char payload[ETH_MTU];
-        ipv4_addr_t sender;
+        ipv4_addr_t sender, local_dst;
         uint16_t sender_port;
-        int received = udp_recv(udp, sender, &sender_port,
-                                payload, sizeof(payload), 500);
+        int received = udp_recv_to(udp, sender, &sender_port, local_dst,
+                                   payload, sizeof(payload), 500);
         if (stop_requested) {
             break;
         }
@@ -60,7 +60,8 @@ int main(int argc, char *argv[])
 
         char address[IPv4_STR_MAX_LENGTH];
         ipv4_addr_str(sender, address);
-        if (udp_send(udp, sender, sender_port, payload, received) != received) {
+        if (udp_send_from(udp, local_dst, sender, sender_port,
+                          payload, received) != received) {
             fprintf(stderr, "Could not echo to %s:%u.\n", address,
                     (unsigned int)sender_port);
             continue;
