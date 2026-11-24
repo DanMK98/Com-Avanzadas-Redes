@@ -8,6 +8,10 @@
 
 static volatile sig_atomic_t stop_requested = 0;
 
+
+
+
+
 static void request_stop(int signal_number)
 {
     (void)signal_number;
@@ -37,7 +41,8 @@ int main(int argc, char *argv[])
     while (!stop_requested) {
         unsigned char payload[ETH_MTU];
         ipv4_addr_t sender;
-        int received = ipv4_recv(layer, sender, ECHO_PROTOCOL,
+        ipv4_addr_t local_dst;
+        int received = ipv4_recv_to(layer, sender, local_dst, ECHO_PROTOCOL,
                                  payload, sizeof(payload), 500);
         if (stop_requested) {
             break;
@@ -52,7 +57,7 @@ int main(int argc, char *argv[])
         }
         char address[IPv4_STR_MAX_LENGTH];
         ipv4_addr_str(sender, address);
-        if (ipv4_send(layer, sender, ECHO_PROTOCOL, payload, received) != received) {
+        if (ipv4_send_from(layer, local_dst, sender, ECHO_PROTOCOL, payload, received) != received) {
             fprintf(stderr, "Could not echo to %s.\n", address);
             continue;
         }
