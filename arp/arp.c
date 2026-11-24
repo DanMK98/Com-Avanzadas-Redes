@@ -3,7 +3,13 @@
 #include <arpa/inet.h>
 #include <string.h>
 
-int arp_resolve(eth_iface_t *iface, ipv4_addr_t src_ip, ipv4_addr_t dest, mac_addr_t mac)
+int arp_resolve(eth_iface_t *iface, ipv4_addr_t dest, mac_addr_t mac)
+{
+    ipv4_addr_t src_ip = {0};
+    return arp_resolve_from(iface, src_ip, dest, mac);
+}
+
+int arp_resolve_from(eth_iface_t *iface, ipv4_addr_t src_ip, ipv4_addr_t dest, mac_addr_t mac)
 {
 
    struct arp_header peticion;
@@ -39,7 +45,7 @@ int arp_resolve(eth_iface_t *iface, ipv4_addr_t src_ip, ipv4_addr_t dest, mac_ad
 
       bytes_leidos = eth_recv(iface, mac_remota, 0x0806, (unsigned char *)&respuesta, sizeof(struct arp_header), timerms_left(&timer));
 
-      if (bytes_leidos > 0)
+      if (bytes_leidos >= (int)sizeof(respuesta))
       {
          if (ntohs(respuesta.opcode) == 2 && memcmp(respuesta.src_ip, dest, sizeof(ipv4_addr_t)) == 0)
          {

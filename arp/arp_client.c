@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 #include "../eth/eth.h"
 #include "../ipv4/ipv4.h"
 #include "../arp/arp.h"
@@ -7,22 +8,19 @@
 int main(int argc, char *argv[])
 {
 
-   if (argc != 4)
+   if (argc != 3)
    {
       fprintf(stderr, "Error: Debes escribir al menos 3 elementos para ejecutar el programa (ejemplo: %s eth0 192.168.1.20).\n", argv[0]);
       exit(EXIT_FAILURE);
    }
    char *iface_name = argv[1];
-   char *src_ip_str = argv[2];
-   char *dest_ip_str = argv[3];
+   char *dest_ip_str = argv[2];
 
-   ipv4_addr_t src_ip;
    ipv4_addr_t dest_ip;
 
-   if (ipv4_str_addr(src_ip_str, src_ip) != 0 ||
-       ipv4_str_addr(dest_ip_str, dest_ip) != 0)
+   if (inet_pton(AF_INET, dest_ip_str, dest_ip) != 1)
    {
-      fprintf(stderr, "Error: invalid source or target IPv4 address.\n");
+      fprintf(stderr, "Error: invalid target IPv4 address.\n");
       return EXIT_FAILURE;
    }
 
@@ -35,7 +33,7 @@ int main(int argc, char *argv[])
 
    mac_addr_t mac_resuelta;
 
-   int resultado = arp_resolve(iface, src_ip, dest_ip, mac_resuelta);
+   int resultado = arp_resolve(iface, dest_ip, mac_resuelta);
 
    if (resultado == 0)
    {
@@ -52,5 +50,5 @@ int main(int argc, char *argv[])
    }
 
    eth_close(iface);
-   return 0;
+   return resultado == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

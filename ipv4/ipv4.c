@@ -8,15 +8,16 @@
 #include <ifaddrs.h>
 #include <netinet/in.h>
 
-#include <string.h> /* For memcpy(), memcmp(), etc*/
+#include <string.h>    /* For memcpy(), memcmp(), etc*/
 #include <arpa/inet.h> /* For htons(), ntohs(), etc. */
 
 #include <timerms.h> /* For gettimeofday() */
 
 /* Dirección IPv4 a cero: "0.0.0.0" */
-ipv4_addr_t IPv4_ZERO_ADDR = { 0, 0, 0, 0 };
+ipv4_addr_t IPv4_ZERO_ADDR = {0, 0, 0, 0};
 
-struct ipv4_header {
+struct ipv4_header
+{
   uint8_t version_ihl;
   uint8_t tos;
   uint16_t total_length;
@@ -29,7 +30,6 @@ struct ipv4_header {
   ipv4_addr_t dst;
 } __attribute__((__packed__));
 
-
 /* void ipv4_addr_str ( ipv4_addr_t addr, char* str );
  *
  * DESCRIPCIÓN:
@@ -41,10 +41,12 @@ struct ipv4_header {
  *    'str': Memoria donde se desea almacenar la cadena de texto generada.
  *           Deben reservarse al menos 'IPv4_STR_MAX_LENGTH' bytes.
  */
-void ipv4_addr_str ( ipv4_addr_t addr, char* str ) {
-   if (str != NULL) {
-      sprintf(str, "%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3]);
-   }
+void ipv4_addr_str(ipv4_addr_t addr, char *str)
+{
+  if (str != NULL)
+  {
+    sprintf(str, "%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3]);
+  }
 }
 
 /* int ipv4_str_addr ( char* str, ipv4_addr_t addr );
@@ -63,20 +65,24 @@ void ipv4_addr_str ( ipv4_addr_t addr, char* str ) {
  *   La función devuelve -1 si la cadena de texto no representaba una
  *   dirección IPv4.
  */
-int ipv4_str_addr ( char* str, ipv4_addr_t addr ) {
-   int err = -1;
+int ipv4_str_addr(char *str, ipv4_addr_t addr)
+{
+  int err = -1;
 
-   if (str != NULL) {
-      unsigned int addr_int[IPv4_ADDR_SIZE];
-      int len = sscanf(str, "%d.%d.%d.%d", &addr_int[0], &addr_int[1], &addr_int[2], &addr_int[3]); 
-      if (len == IPv4_ADDR_SIZE) {
-         int i;
-         for (i=0; i<IPv4_ADDR_SIZE; i++) {
-           addr[i] = (unsigned char) addr_int[i];
-         }
-         err = 0;
+  if (str != NULL)
+  {
+    unsigned int addr_int[IPv4_ADDR_SIZE];
+    int len = sscanf(str, "%d.%d.%d.%d", &addr_int[0], &addr_int[1], &addr_int[2], &addr_int[3]);
+    if (len == IPv4_ADDR_SIZE)
+    {
+      int i;
+      for (i = 0; i < IPv4_ADDR_SIZE; i++)
+      {
+        addr[i] = (unsigned char)addr_int[i];
       }
-   }
+      err = 0;
+    }
+  }
   return err;
 }
 
@@ -93,84 +99,146 @@ int ipv4_str_addr ( char* str, ipv4_addr_t addr ) {
  * VALOR DEVUELTO:
  *   El valor del checksum calculado.
  */
-uint16_t ipv4_checksum ( unsigned char * data, int len ) {
-   int i;
-   uint16_t word16;
-   unsigned int sum = 0;
-    
-   /* Make 16 bit words out of every two adjacent 8 bit words in the packet
+uint16_t ipv4_checksum(unsigned char *data, int len)
+{
+  int i;
+  uint16_t word16;
+  unsigned int sum = 0;
+
+  /* Make 16 bit words out of every two adjacent 8 bit words in the packet
    * and add them up */
-   for (i=0; i<len; i=i+2) {
-      word16 = ((data[i] << 8) & 0xFF00) + (data[i+1] & 0x00FF);
-      sum = sum + (unsigned int) word16;	
-   }
+  for (i = 0; i < len; i = i + 2)
+  {
+    word16 = ((data[i] << 8) & 0xFF00) + (data[i + 1] & 0x00FF);
+    sum = sum + (unsigned int)word16;
+  }
 
-   /* Take only 16 bits out of the 32 bit sum and add up the carries */
-   while (sum >> 16) {
-      sum = (sum & 0xFFFF) + (sum >> 16);
-   }
+  /* Take only 16 bits out of the 32 bit sum and add up the carries */
+  while (sum >> 16)
+  {
+    sum = (sum & 0xFFFF) + (sum >> 16);
+  }
 
-   /* One's complement the result */
-   sum = ~sum;
+  /* One's complement the result */
+  sum = ~sum;
 
-   return (uint16_t) sum;
+  return (uint16_t)sum;
 }
 
-ipv4_layer_t* ipv4_open(char * file_conf, char * file_conf_route) {
-   if (file_conf == NULL || file_conf_route == NULL ||
-       file_conf[0] == '\0' || file_conf_route[0] == '\0') {
-      return NULL;
-   }
+static int ipv4_add_connected_routes(ipv4_route_table_t *table, char *iface_name)
+{
+  struct ifaddrs *interfaces;
+  if (getifaddrs(&interfaces) != 0)
+  {
+    perror("Could not read connected IPv4 subnets");
+    return -1;
+  }
 
-   ipv4_layer_t * layer = malloc(sizeof(ipv4_layer_t));
-   if (layer == NULL) {
-        return NULL;
-   }
+  int result = 0;
+  for (const struct ifaddrs *entry = interfaces; entry; entry = entry->ifa_next)
+  {
+    if (entry->ifa_addr == NULL || entry->ifa_addr->sa_family != AF_INET ||
+        entry->ifa_netmask == NULL || strcmp(entry->ifa_name, iface_name) != 0)
+    {
+      continue;
+    }
 
-   // 1. Crear tabla de rutas -> routing_table
-   layer->route_table = ipv4_route_table_create();
-   if (layer->route_table == NULL) {
-      free(layer);
-      return NULL;
-   }
-   // 2. Leer direcciones y subred de file_conf
-   char iface_name[IFACE_NAME_MAX_LENGTH];
-   if (ipv4_config_read(file_conf, iface_name,
-                        layer->src_addr, layer->netmask) != 0) {
-      ipv4_route_table_free(layer->route_table);
-      free(layer);
-      return NULL;
-   }
+    const struct sockaddr_in *address =
+        (const struct sockaddr_in *)entry->ifa_addr;
+    const struct sockaddr_in *netmask =
+        (const struct sockaddr_in *)entry->ifa_netmask;
+    ipv4_addr_t subnet, mask;
 
-   // 3. Leer tabla de reenvío IP de file_conf_route
-   if (ipv4_route_table_read(file_conf_route, layer->route_table) < 0) {
-      ipv4_route_table_free(layer->route_table);
-      free(layer);
-      return NULL;
-   }
+    memcpy(subnet, &address->sin_addr, IPv4_ADDR_SIZE);
+    memcpy(mask, &netmask->sin_addr, IPv4_ADDR_SIZE);
+    for (int i = 0; i < IPv4_ADDR_SIZE; i++)
+    {
+      subnet[i] &= mask[i];
+    }
 
-   // 4. Inicializar capa Ethernet con eth_open()
-   layer->eth_iface = eth_open(iface_name);
+    if (ipv4_route_table_find(table, subnet, mask) >= 0)
+    {
+      continue;
+    }
 
-   if (layer->eth_iface == NULL) {
-      // 4.1. Liberar la memoria de la tabla de enrutamiento creada en el paso 1
-      ipv4_route_table_free(layer->route_table);
-      // 4.2. Liberar la memoria de la estructura general de la capa IPv4
-      free(layer);
+    ipv4_route_t *route =
+        ipv4_route_create(subnet, mask, iface_name, IPv4_ZERO_ADDR);
+    if (route == NULL || ipv4_route_table_add(table, route) < 0)
+    {
+      ipv4_route_free(route);
+      result = -1;
+      break;
+    }
+  }
 
-      return NULL;
-   }
+  freeifaddrs(interfaces);
+  return result;
+}
 
-   return layer;
+ipv4_layer_t *ipv4_open(char *file_conf, char *file_conf_route)
+{
+  if (file_conf == NULL || file_conf_route == NULL ||
+      file_conf[0] == '\0' || file_conf_route[0] == '\0')
+  {
+    return NULL;
+  }
+
+  ipv4_layer_t *layer = malloc(sizeof(ipv4_layer_t));
+  if (layer == NULL)
+  {
+    return NULL;
+  }
+
+  // 1. Crear tabla de rutas -> routing_table
+  layer->route_table = ipv4_route_table_create();
+  if (layer->route_table == NULL)
+  {
+    free(layer);
+    return NULL;
+  }
+  // 2. Leer direcciones y subred de file_conf
+  char iface_name[IFACE_NAME_MAX_LENGTH];
+  if (ipv4_config_read(file_conf, iface_name,
+                       layer->src_addr, layer->netmask) != 0)
+  {
+    ipv4_route_table_free(layer->route_table);
+    free(layer);
+    return NULL;
+  }
+
+  if (ipv4_add_connected_routes(layer->route_table, iface_name) != 0 ||
+      ipv4_route_table_read(file_conf_route, layer->route_table) < 0)
+  {
+    ipv4_route_table_free(layer->route_table);
+    free(layer);
+    return NULL;
+  }
+
+  // 4. Inicializar capa Ethernet con eth_open()
+  layer->eth_iface = eth_open(iface_name);
+
+  if (layer->eth_iface == NULL)
+  {
+    // 4.1. Liberar la memoria de la tabla de enrutamiento creada en el paso 1
+    ipv4_route_table_free(layer->route_table);
+    // 4.2. Liberar la memoria de la estructura general de la capa IPv4
+    free(layer);
+
+    return NULL;
+  }
+
+  return layer;
 }
 
 int ipv4_close(ipv4_layer_t *layer)
 {
-  if (layer == NULL) {
+  if (layer == NULL)
+  {
     return -1;
   }
   int result = 0;
-  if (layer->eth_iface != NULL) {
+  if (layer->eth_iface != NULL)
+  {
     result = eth_close(layer->eth_iface);
   }
   ipv4_route_table_free(layer->route_table);
@@ -178,12 +246,15 @@ int ipv4_close(ipv4_layer_t *layer)
   return result;
 }
 
-int ipv4_send_from (ipv4_layer_t * layer, ipv4_addr_t src, ipv4_addr_t dst, uint8_t protocol, unsigned char * payload, int payload_len) {
-  if ((layer == NULL) || (src == NULL) || (dst == NULL) || (payload == NULL) || (payload_len <= 0)) {
+int ipv4_send_from(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t dst, uint8_t protocol, unsigned char *payload, int payload_len)
+{
+  if ((layer == NULL) || (src == NULL) || (dst == NULL) || (payload == NULL) || (payload_len <= 0))
+  {
     return -1;
   }
   /* 1. Rellenar datagrama IPv4 (cabecera + datos) */
-  if (payload_len > ETH_MTU - (int) sizeof(struct ipv4_header)) {
+  if (payload_len > ETH_MTU - (int)sizeof(struct ipv4_header))
+  {
     return -1;
   }
 
@@ -197,47 +268,55 @@ int ipv4_send_from (ipv4_layer_t * layer, ipv4_addr_t src, ipv4_addr_t dst, uint
   header.protocol = protocol;
   memcpy(header.src, src, IPv4_ADDR_SIZE);
   memcpy(header.dst, dst, IPv4_ADDR_SIZE);
-  header.checksum = htons(ipv4_checksum((unsigned char *) &header, sizeof(header)));
+  header.checksum = htons(ipv4_checksum((unsigned char *)&header, sizeof(header)));
 
   memcpy(datagram, &header, sizeof(header));
   memcpy(datagram + sizeof(header), payload, payload_len);
 
   /* 2. Obtener siguiente salto con ipv4_route_table_lookup () */
-  ipv4_route_t * route = ipv4_route_table_lookup(layer->route_table, dst);
+  ipv4_route_t *route = ipv4_route_table_lookup(layer->route_table, dst);
 
-  if (route == NULL) {
-    return -1; //If no route found, return error
+  if (route == NULL)
+  {
+    return -1; // If no route found, return error
   }
 
   ipv4_addr_t next_hop;
-  if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
-    memcpy(next_hop, dst, IPv4_ADDR_SIZE); //Directly connected, use destination address
-  } else {
-    memcpy(next_hop, route->gateway_addr, IPv4_ADDR_SIZE); //Use gateway
+  if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0)
+  {
+    memcpy(next_hop, dst, IPv4_ADDR_SIZE); // Directly connected, use destination address
+  }
+  else
+  {
+    memcpy(next_hop, route->gateway_addr, IPv4_ADDR_SIZE); // Use gateway
   }
 
   /* 3. Averiguar dirección MAC sig. salto con arp_resolve() */
-  eth_iface_t * iface = layer->eth_iface;
-  if (iface == NULL) {
+  eth_iface_t *iface = layer->eth_iface;
+  if (iface == NULL)
+  {
     return -1;
   }
 
   const char *iface_name = eth_getname(iface);
-  if (iface_name == NULL || strcmp(iface_name, route->iface) != 0) {
+  if (iface_name == NULL || strcmp(iface_name, route->iface) != 0)
+  {
     return -1;
   }
 
   mac_addr_t next_hop_mac;
-  int arp_result = arp_resolve(iface, src, next_hop, next_hop_mac);
+  int arp_result = arp_resolve_from(iface, src, next_hop, next_hop_mac);
 
-  if (arp_result != 0) {
+  if (arp_result != 0)
+  {
     return -1;
   }
 
   /* ¡OJO! Gestionar caso destino directamente conectado */
   /* 4. Enviar datagrama con eth_send() */
   int sent = eth_send(iface, next_hop_mac, 0x0800, datagram, datagram_len);
-  if (sent != datagram_len) {
+  if (sent != datagram_len)
+  {
     return -1;
   }
 
@@ -248,47 +327,53 @@ int ipv4_send_from (ipv4_layer_t * layer, ipv4_addr_t src, ipv4_addr_t dst, uint
 int ipv4_send(ipv4_layer_t *layer, ipv4_addr_t dst, uint8_t protocol,
               unsigned char *payload, int payload_len)
 {
-    if (layer == NULL) {
-        return -1;
-    }
-    return ipv4_send_from(layer, layer->src_addr, dst, protocol,
-                          payload, payload_len);
+  if (layer == NULL)
+  {
+    return -1;
+  }
+  return ipv4_send_from(layer, layer->src_addr, dst, protocol,
+                        payload, payload_len);
 }
 
 static int ipv4_is_assigned(eth_iface_t *iface, const ipv4_addr_t address)
 {
-    const char *name = eth_getname(iface);
-    struct ifaddrs *interfaces;
+  const char *name = eth_getname(iface);
+  struct ifaddrs *interfaces;
 
-    if (name == NULL || getifaddrs(&interfaces) != 0) {
-        return 0;
+  if (name == NULL || getifaddrs(&interfaces) != 0)
+  {
+    return 0;
+  }
+
+  int found = 0;
+  for (const struct ifaddrs *entry = interfaces; entry; entry = entry->ifa_next)
+  {
+    if (entry->ifa_addr == NULL || entry->ifa_addr->sa_family != AF_INET ||
+        strcmp(entry->ifa_name, name) != 0)
+    {
+      continue;
     }
 
-    int found = 0;
-    for (const struct ifaddrs *entry = interfaces; entry; entry = entry->ifa_next) {
-        if (entry->ifa_addr == NULL || entry->ifa_addr->sa_family != AF_INET ||
-            strcmp(entry->ifa_name, name) != 0) {
-            continue;
-        }
-
-        const struct sockaddr_in *local =
-            (const struct sockaddr_in *)entry->ifa_addr;
-        if (memcmp(&local->sin_addr, address, IPv4_ADDR_SIZE) == 0) {
-            found = 1;
-            break;
-        }
+    const struct sockaddr_in *local =
+        (const struct sockaddr_in *)entry->ifa_addr;
+    if (memcmp(&local->sin_addr, address, IPv4_ADDR_SIZE) == 0)
+    {
+      found = 1;
+      break;
     }
+  }
 
-    freeifaddrs(interfaces);
-    return found;
+  freeifaddrs(interfaces);
+  return found;
 }
 
-int ipv4_recv_to(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t local_dst, 
-              uint8_t protocol, unsigned char *buffer,
-              int buffer_len, long int timeout)
+int ipv4_recv_to(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t local_dst,
+                 uint8_t protocol, unsigned char *buffer,
+                 int buffer_len, long int timeout)
 {
   if (layer == NULL || layer->eth_iface == NULL ||
-      src == NULL || buffer == NULL || buffer_len <= 0) {
+      src == NULL || buffer == NULL || buffer_len <= 0)
+  {
     return -1;
   }
 
@@ -297,17 +382,22 @@ int ipv4_recv_to(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t local_dst,
   timerms_t timer;
   int first_attempt = 1;
 
-  if (timeout >= 0) {
+  if (timeout >= 0)
+  {
     timerms_reset(&timer, timeout);
   }
 
-  for (;;) {
+  for (;;)
+  {
     long int remaining = -1;
     /* Preserve the original deadline when discarding packets. */
-    if (timeout >= 0) {
+    if (timeout >= 0)
+    {
       remaining = timerms_left(&timer);
-      if (remaining <= 0) {
-        if (!first_attempt) {
+      if (remaining <= 0)
+      {
+        if (!first_attempt)
+        {
           return 0;
         }
         remaining = 0;
@@ -317,11 +407,13 @@ int ipv4_recv_to(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t local_dst,
 
     int received = eth_recv(layer->eth_iface, src_mac, 0x0800,
                             datagram, sizeof(datagram), remaining);
-    if (received <= 0) {
+    if (received <= 0)
+    {
       return received;
     }
-    if (received < (int) sizeof(struct ipv4_header) ||
-        received > (int) sizeof(datagram)) {
+    if (received < (int)sizeof(struct ipv4_header) ||
+        received > (int)sizeof(datagram))
+    {
       continue;
     }
 
@@ -330,41 +422,48 @@ int ipv4_recv_to(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t local_dst,
     int version = header.version_ihl >> 4;
     int header_len = (header.version_ihl & 0x0F) * 4;
     int total_len = ntohs(header.total_length);
-    if (version != 4 || header_len < (int) sizeof(header) ||
+    if (version != 4 || header_len < (int)sizeof(header) ||
         header_len > received || total_len < header_len ||
-        total_len > received) {
+        total_len > received)
+    {
       continue;
     }
     if (ipv4_checksum(datagram, header_len) != 0 ||
-        header.ttl == 0 || header.protocol != protocol) {
+        header.ttl == 0 || header.protocol != protocol)
+    {
       continue;
     }
     /* Initial implementation: local unicast only. */
     int accepts_destination = local_dst != NULL
-      ? ipv4_is_assigned(layer->eth_iface, header.dst)
-      : memcmp(header.dst, layer->src_addr, IPv4_ADDR_SIZE) == 0;
+                                  ? ipv4_is_assigned(layer->eth_iface, header.dst)
+                                  : memcmp(header.dst, layer->src_addr, IPv4_ADDR_SIZE) == 0;
 
-    if (!accepts_destination) {
+    if (!accepts_destination)
+    {
       continue;
     }
     /* Reject reserved flag, MF, and nonzero fragment offset; allow DF. */
-    if ((ntohs(header.flags_fragment) & 0xBFFF) != 0) {
+    if ((ntohs(header.flags_fragment) & 0xBFFF) != 0)
+    {
       continue;
     }
 
     int payload_len = total_len - header_len;
     /* Zero is reserved for timeout by this API. */
-    if (payload_len == 0) {
+    if (payload_len == 0)
+    {
       continue;
     }
-    if (payload_len > buffer_len) {
+    if (payload_len > buffer_len)
+    {
       return -1;
     }
     memcpy(buffer, datagram + header_len, payload_len);
     memcpy(src, header.src, IPv4_ADDR_SIZE);
 
-    if (local_dst != NULL) {
-    memcpy(local_dst, header.dst, IPv4_ADDR_SIZE);
+    if (local_dst != NULL)
+    {
+      memcpy(local_dst, header.dst, IPv4_ADDR_SIZE);
     }
 
     return payload_len;
@@ -374,5 +473,5 @@ int ipv4_recv_to(ipv4_layer_t *layer, ipv4_addr_t src, ipv4_addr_t local_dst,
 int ipv4_recv(ipv4_layer_t *layer, ipv4_addr_t src, uint8_t protocol,
               unsigned char *buffer, int buffer_len, long int timeout)
 {
-    return ipv4_recv_to(layer, src, NULL, protocol, buffer, buffer_len, timeout);
+  return ipv4_recv_to(layer, src, NULL, protocol, buffer, buffer_len, timeout);
 }
